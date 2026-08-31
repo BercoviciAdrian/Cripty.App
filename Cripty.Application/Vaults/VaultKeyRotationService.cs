@@ -87,7 +87,8 @@ internal sealed class VaultKeyRotationService
             checked(currentManifest.Generation + 1),
             currentManifest.Folders,
             currentManifest.Tags,
-            currentManifest.Entries);
+            currentManifest.Entries,
+            currentManifest.SortPreferences);
 
         string operationId = Guid.NewGuid().ToString("N");
 
@@ -728,12 +729,32 @@ internal sealed class VaultKeyRotationService
             actual.Generation != expected.Generation ||
             !FoldersMatch(expected.Folders, actual.Folders) ||
             !TagsMatch(expected.Tags, actual.Tags) ||
-            !EntriesMatch(expected.Entries, actual.Entries))
+            !EntriesMatch(expected.Entries, actual.Entries) ||
+            !SortPreferencesMatch(
+                expected.SortPreferences,
+                actual.SortPreferences))
         {
             throw new InvalidDataException(
                 "The staged vault manifest does not match the " +
                 "source vault.");
         }
+    }
+
+    private static bool SortPreferencesMatch(
+        VaultSortPreferences expected,
+        VaultSortPreferences actual)
+    {
+        return expected.AllEntriesSortMode ==
+                   actual.AllEntriesSortMode &&
+               expected.RootSortMode ==
+                   actual.RootSortMode &&
+               expected.FolderSortModes.Count ==
+                   actual.FolderSortModes.Count &&
+               expected.FolderSortModes.All(pair =>
+                   actual.FolderSortModes.TryGetValue(
+                       pair.Key,
+                       out EntrySortMode actualMode) &&
+                   actualMode == pair.Value);
     }
 
     private static bool FoldersMatch(

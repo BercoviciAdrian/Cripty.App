@@ -138,6 +138,18 @@ public sealed class VaultKeyRotationTests
 
                 await session.SaveAsync();
 
+                session.SetAllEntriesSortMode(
+                    EntrySortMode.TimelineNewest);
+
+                session.SetRootSortMode(
+                    EntrySortMode.CreatedOldest);
+
+                session.SetFolderSortMode(
+                    parentFolder.FolderId,
+                    EntrySortMode.NameAscending);
+
+                await session.SaveAsync();
+
                 vaultId = session.VaultId;
                 parentFolderId = parentFolder.FolderId;
                 emptyFolderId = emptyFolder.FolderId;
@@ -173,6 +185,19 @@ public sealed class VaultKeyRotationTests
                     generationAfterRotation);
 
                 Assert.AreEqual(vaultId, session.VaultId);
+
+                Assert.AreEqual(
+                    EntrySortMode.TimelineNewest,
+                    session.AllEntriesSortMode);
+
+                Assert.AreEqual(
+                    EntrySortMode.CreatedOldest,
+                    session.RootSortMode);
+
+                Assert.AreEqual(
+                    EntrySortMode.NameAscending,
+                    session.GetFolderSortMode(
+                        parentFolderId));
 
                 Assert.IsTrue(
                     session.Folders.Any(folder =>
@@ -274,6 +299,19 @@ public sealed class VaultKeyRotationTests
                     NewPassword);
 
             Assert.AreEqual(vaultId, reopened.VaultId);
+
+            Assert.AreEqual(
+                EntrySortMode.TimelineNewest,
+                reopened.AllEntriesSortMode);
+
+            Assert.AreEqual(
+                EntrySortMode.CreatedOldest,
+                reopened.RootSortMode);
+
+            Assert.AreEqual(
+                EntrySortMode.NameAscending,
+                reopened.GetFolderSortMode(
+                    parentFolderId));
             Assert.IsTrue(
                 reopened.ManifestGeneration >
                 generationAfterRotation);

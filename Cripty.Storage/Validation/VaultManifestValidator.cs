@@ -29,6 +29,10 @@ internal static class VaultManifestValidator
         Dictionary<Guid, FolderDescriptor> foldersById =
             ValidateFolders(manifest.Folders);
 
+        ValidateSortPreferences(
+            manifest.SortPreferences,
+            foldersById);
+
         Dictionary<Guid, TagDescriptor> tagsById =
             ValidateTags(manifest.Tags);
 
@@ -36,6 +40,56 @@ internal static class VaultManifestValidator
             manifest.Entries,
             foldersById,
             tagsById);
+    }
+
+    private static void ValidateSortPreferences(
+        VaultSortPreferences preferences,
+        IReadOnlyDictionary<Guid, FolderDescriptor>
+            foldersById)
+    {
+        ArgumentNullException.ThrowIfNull(preferences);
+
+        ValidateSortMode(
+            preferences.AllEntriesSortMode,
+            "all-entries");
+
+        ValidateSortMode(
+            preferences.RootSortMode,
+            "root");
+
+        foreach (KeyValuePair<Guid, EntrySortMode> preference in
+                 preferences.FolderSortModes)
+        {
+            if (preference.Key == Guid.Empty)
+            {
+                throw new InvalidDataException(
+                    "A folder sort preference has an empty " +
+                    "folder ID.");
+            }
+
+            if (!foldersById.ContainsKey(preference.Key))
+            {
+                throw new InvalidDataException(
+                    $"A sort preference refers to missing folder " +
+                    $"'{preference.Key}'.");
+            }
+
+            ValidateSortMode(
+                preference.Value,
+                $"folder '{preference.Key}'");
+        }
+    }
+
+    private static void ValidateSortMode(
+        EntrySortMode sortMode,
+        string target)
+    {
+        if (!Enum.IsDefined(sortMode))
+        {
+            throw new InvalidDataException(
+                $"The {target} sort preference " +
+                $"'{sortMode}' is not supported.");
+        }
     }
 
     public static void ValidateSchemaVersion(

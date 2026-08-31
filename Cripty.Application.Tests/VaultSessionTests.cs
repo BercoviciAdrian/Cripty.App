@@ -196,6 +196,155 @@ public sealed class VaultSessionTests
     }
 
     [TestMethod]
+    public async Task OpenAsync_SchemaTwoVault_AddsDefaultSortPreferences()
+    {
+        Directory.CreateDirectory(_vaultDirectory);
+
+        Guid vaultId = Guid.NewGuid();
+        Guid folderId = Guid.NewGuid();
+        const long originalGeneration = 11;
+
+        VaultManifest legacyManifest = new(
+            schemaVersion: 2,
+            vaultId: vaultId,
+            generation: originalGeneration,
+            folders:
+            [
+                new FolderDescriptor(
+                    folderId,
+                    "Journal",
+                    parentFolderId: null)
+            ],
+            tags: [],
+            entries: []);
+
+        byte[] rootKey =
+            new byte[VaultRootKeyGenerator.KeySize];
+
+        try
+        {
+            VaultRootKeyGenerator.Generate(rootKey);
+
+            VaultFile legacyFile =
+                new VaultFileCodec().Create(
+                    legacyManifest,
+                    rootKey,
+                    Password,
+                    TestKdfParameters);
+
+            await new VaultFileStore().WriteAsync(
+                _vaultDirectory,
+                legacyFile);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(rootKey);
+        }
+
+        await using VaultSession opened =
+            await VaultSession.OpenAsync(
+                _vaultDirectory,
+                Password);
+
+        Assert.AreEqual(
+            StorageSchemaVersions.CurrentManifest,
+            opened.ManifestSchemaVersion);
+
+        Assert.AreEqual(
+            originalGeneration + 1,
+            opened.ManifestGeneration);
+
+        Assert.AreEqual(
+            EntrySortMode.ModifiedNewest,
+            opened.AllEntriesSortMode);
+
+        Assert.AreEqual(
+            EntrySortMode.ModifiedNewest,
+            opened.RootSortMode);
+
+        Assert.AreEqual(
+            EntrySortMode.ModifiedNewest,
+            opened.GetFolderSortMode(folderId));
+    }
+
+    [TestMethod]
+    public async Task SortPreferences_SaveAndOpen_KeepEntryMetadataUntouched()
+    {
+        Guid folderId;
+        Guid entryId;
+        long revision;
+        DateTimeOffset createdUtc;
+        DateTimeOffset modifiedUtc;
+
+        await using (VaultSession session =
+                     await CreateSessionAsync())
+        {
+            FolderDescriptor folder =
+                session.CreateFolder("Journal");
+
+            VaultEntry entry =
+                session.CreateEntry(
+                    "Historical note",
+                    folder.FolderId);
+
+            await session.SaveAsync();
+
+            EntryDescriptor before =
+                session.Entries.Single(candidate =>
+                    candidate.EntryId == entry.EntryId);
+
+            folderId = folder.FolderId;
+            entryId = entry.EntryId;
+            revision = before.Revision;
+            createdUtc = before.CreatedUtc;
+            modifiedUtc = before.ModifiedUtc;
+
+            session.SetAllEntriesSortMode(
+                EntrySortMode.TimelineNewest);
+            session.SetRootSortMode(
+                EntrySortMode.CreatedOldest);
+            session.SetFolderSortMode(
+                folderId,
+                EntrySortMode.TimelineOldest);
+
+            Assert.IsTrue(session.HasUnsavedChanges);
+
+            EntryDescriptor after =
+                session.Entries.Single(candidate =>
+                    candidate.EntryId == entryId);
+
+            Assert.AreEqual(revision, after.Revision);
+            Assert.AreEqual(createdUtc, after.CreatedUtc);
+            Assert.AreEqual(modifiedUtc, after.ModifiedUtc);
+
+            await session.SaveAsync();
+        }
+
+        await using VaultSession reopened =
+            await VaultSession.OpenAsync(
+                _vaultDirectory,
+                Password);
+
+        Assert.AreEqual(
+            EntrySortMode.TimelineNewest,
+            reopened.AllEntriesSortMode);
+        Assert.AreEqual(
+            EntrySortMode.CreatedOldest,
+            reopened.RootSortMode);
+        Assert.AreEqual(
+            EntrySortMode.TimelineOldest,
+            reopened.GetFolderSortMode(folderId));
+
+        EntryDescriptor restored =
+            reopened.Entries.Single(candidate =>
+                candidate.EntryId == entryId);
+
+        Assert.AreEqual(revision, restored.Revision);
+        Assert.AreEqual(createdUtc, restored.CreatedUtc);
+        Assert.AreEqual(modifiedUtc, restored.ModifiedUtc);
+    }
+
+    [TestMethod]
     public async Task SaveAndOpen_CompleteVault_RoundTrips()
     {
         Guid vaultId;

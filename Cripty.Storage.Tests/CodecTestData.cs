@@ -8,7 +8,7 @@ namespace Cripty.Storage.Tests;
 internal static class CodecTestData
 {
     public const int CurrentEntrySchemaVersion = 1;
-    public const int CurrentManifestSchemaVersion = 2;
+    public const int CurrentManifestSchemaVersion = 3;
 
     /*
      * These are the smallest parameters currently accepted by
@@ -125,7 +125,17 @@ internal static class CodecTestData
                         schemaVersion >= 2
                             ? new DateOnly(2026, 7, 22)
                             : null)
-            ]);
+            ],
+            schemaVersion >= 3
+                ? new VaultSortPreferences(
+                    EntrySortMode.TimelineNewest,
+                    EntrySortMode.NameAscending,
+                    new Dictionary<Guid, EntrySortMode>
+                    {
+                        [childFolderId] =
+                            EntrySortMode.CreatedOldest
+                    })
+                : null);
     }
 
     public static CbcHmacEnvelope CloneEnvelope(
@@ -197,6 +207,18 @@ internal static class CodecTestData
         Assert.AreEqual(
             expected.Generation,
             actual.Generation);
+
+        Assert.AreEqual(
+            expected.SortPreferences.AllEntriesSortMode,
+            actual.SortPreferences.AllEntriesSortMode);
+
+        Assert.AreEqual(
+            expected.SortPreferences.RootSortMode,
+            actual.SortPreferences.RootSortMode);
+
+        CollectionAssert.AreEquivalent(
+            expected.SortPreferences.FolderSortModes.ToArray(),
+            actual.SortPreferences.FolderSortModes.ToArray());
 
         Assert.AreEqual(
             expected.Folders.Count,

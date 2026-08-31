@@ -23,4 +23,11 @@ public sealed class VaultManifestDto
         get;
         init;
     }
+
+    // Optional when reading manifest schemas 1 and 2.
+    public VaultSortPreferencesDto? SortPreferences
+    {
+        get;
+        init;
+    }
 }

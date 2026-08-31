@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using Cripty.Application.Vaults;
+using Cripty.Core.Vaults;
 
 namespace Cripty.ViewModels;
 
@@ -13,29 +15,17 @@ public enum VaultFolderFilterKind
     Folder
 }
 
-public enum VaultEntrySortKind
-{
-    NameAscending,
-    NameDescending,
-    CreatedNewest,
-    CreatedOldest,
-    TimelineNewest,
-    TimelineOldest,
-    ModifiedNewest,
-    ModifiedOldest
-}
-
 public sealed class VaultEntrySortOptionViewModel
 {
     private VaultEntrySortOptionViewModel(
-        VaultEntrySortKind kind,
+        EntrySortMode kind,
         string name)
     {
         Kind = kind;
         Name = name;
     }
 
-    public VaultEntrySortKind Kind { get; }
+    public EntrySortMode Kind { get; }
 
     public string Name { get; }
 
@@ -43,56 +33,56 @@ public sealed class VaultEntrySortOptionViewModel
         NameAscending
     { get; } =
         new(
-            VaultEntrySortKind.NameAscending,
+            EntrySortMode.NameAscending,
             "NAME · A–Z");
 
     public static VaultEntrySortOptionViewModel
         NameDescending
     { get; } =
         new(
-            VaultEntrySortKind.NameDescending,
+            EntrySortMode.NameDescending,
             "NAME · Z–A");
 
     public static VaultEntrySortOptionViewModel
         CreatedNewest
     { get; } =
         new(
-            VaultEntrySortKind.CreatedNewest,
+            EntrySortMode.CreatedNewest,
             "CREATED · NEWEST");
 
     public static VaultEntrySortOptionViewModel
         CreatedOldest
     { get; } =
         new(
-            VaultEntrySortKind.CreatedOldest,
+            EntrySortMode.CreatedOldest,
             "CREATED · OLDEST");
 
     public static VaultEntrySortOptionViewModel
         TimelineNewest
     { get; } =
         new(
-            VaultEntrySortKind.TimelineNewest,
+            EntrySortMode.TimelineNewest,
             "TIMELINE · NEWEST");
 
     public static VaultEntrySortOptionViewModel
         TimelineOldest
     { get; } =
         new(
-            VaultEntrySortKind.TimelineOldest,
+            EntrySortMode.TimelineOldest,
             "TIMELINE · OLDEST");
 
     public static VaultEntrySortOptionViewModel
         ModifiedNewest
     { get; } =
         new(
-            VaultEntrySortKind.ModifiedNewest,
+            EntrySortMode.ModifiedNewest,
             "MODIFIED · NEWEST");
 
     public static VaultEntrySortOptionViewModel
         ModifiedOldest
     { get; } =
         new(
-            VaultEntrySortKind.ModifiedOldest,
+            EntrySortMode.ModifiedOldest,
             "MODIFIED · OLDEST");
 
     public static IReadOnlyList<
@@ -108,6 +98,17 @@ public sealed class VaultEntrySortOptionViewModel
             ModifiedNewest,
             ModifiedOldest
         ];
+
+    public static VaultEntrySortOptionViewModel FromMode(
+        EntrySortMode sortMode)
+    {
+        return All.FirstOrDefault(option =>
+                   option.Kind == sortMode)
+               ?? throw new ArgumentOutOfRangeException(
+                   nameof(sortMode),
+                   sortMode,
+                   "The entry sort mode is not supported.");
+    }
 }
 
 public abstract class VaultFolderTreeItemViewModel :

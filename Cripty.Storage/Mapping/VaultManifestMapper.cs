@@ -1,5 +1,6 @@
 ﻿using Cripty.Core.Vaults;
 using Cripty.Storage.DTOs;
+using Cripty.Storage.Formats;
 
 namespace Cripty.Storage.Mapping;
 
@@ -26,7 +27,12 @@ public static class VaultManifestMapper
 
             Entries = manifest.Entries
                 .Select(ToDto)
-                .ToList()
+                .ToList(),
+
+            SortPreferences = manifest.SchemaVersion >=
+                    StorageSchemaVersions.SortPreferencesManifest
+                ? ToDto(manifest.SortPreferences)
+                : null
         };
     }
 
@@ -50,13 +56,54 @@ public static class VaultManifestMapper
             ?? throw new InvalidDataException(
                 "The manifest entries collection is missing.");
 
+        VaultSortPreferences sortPreferences =
+            dto.SortPreferences is null
+                ? dto.SchemaVersion <
+                    StorageSchemaVersions.SortPreferencesManifest
+                    ? new VaultSortPreferences()
+                    : throw new InvalidDataException(
+                        "The manifest sort preferences are missing.")
+                : ToDomain(dto.SortPreferences);
+
         return new VaultManifest(
             dto.SchemaVersion,
             dto.VaultId,
             dto.Generation,
             folders.Select(ToDomain),
             tags.Select(ToDomain),
-            entries.Select(ToDomain));
+            entries.Select(ToDomain),
+            sortPreferences);
+    }
+
+    private static VaultSortPreferencesDto ToDto(
+        VaultSortPreferences preferences)
+    {
+        return new VaultSortPreferencesDto
+        {
+            AllEntriesSortMode =
+                preferences.AllEntriesSortMode,
+            RootSortMode = preferences.RootSortMode,
+            FolderSortModes =
+                preferences.FolderSortModes.ToDictionary(
+                    pair => pair.Key,
+                    pair => pair.Value)
+        };
+    }
+
+    private static VaultSortPreferences ToDomain(
+        VaultSortPreferencesDto dto)
+    {
+        ArgumentNullException.ThrowIfNull(dto);
+
+        Dictionary<Guid, EntrySortMode> folderSortModes =
+            dto.FolderSortModes
+            ?? throw new InvalidDataException(
+                "The folder sort preferences are missing.");
+
+        return new VaultSortPreferences(
+            dto.AllEntriesSortMode,
+            dto.RootSortMode,
+            folderSortModes);
     }
 
     private static FolderDescriptorDto ToDto(

@@ -43,6 +43,7 @@ public partial class MainVaultViewModel :
 
     private bool _isRootExpanded = true;
     private bool _isMoveRootExpanded = true;
+    private bool _isLoadingSortPreference;
 
     private int _selectedPasswordKdfMemorySizeKiB;
     private int _selectedPasswordKdfIterations;
@@ -1096,6 +1097,19 @@ public partial class MainVaultViewModel :
     partial void OnSelectedSortOptionChanged(
         VaultEntrySortOptionViewModel? value)
     {
+        if (_isLoadingSortPreference)
+        {
+            return;
+        }
+
+        if (value is not null &&
+            _selectedFolder is not null &&
+            value.Kind != GetSelectedSortMode())
+        {
+            SetSelectedSortMode(value.Kind);
+            RecordUnsavedChange("SORT PREFERENCE UPDATED");
+        }
+
         ApplyEntryFilter();
     }
 
@@ -3298,6 +3312,7 @@ public partial class MainVaultViewModel :
                 ReferenceEquals(item, folder));
         }
 
+        LoadSelectedSortPreference();
         ApplyEntryFilter();
         DeleteFolderCommand.NotifyCanExecuteChanged();
         OpenFolderMoveCommand.NotifyCanExecuteChanged();
@@ -3919,6 +3934,8 @@ public partial class MainVaultViewModel :
                     _selectedTag));
         }
 
+        LoadSelectedSortPreference();
+
         ApplyEntryFilter(
             entries,
             folders,
@@ -4384,13 +4401,13 @@ public partial class MainVaultViewModel :
     private IEnumerable<EntryDescriptor> SortEntries(
         IEnumerable<EntryDescriptor> entries)
     {
-        VaultEntrySortKind sortKind =
+        EntrySortMode sortKind =
             SelectedSortOption?.Kind ??
-            VaultEntrySortKind.ModifiedNewest;
+            EntrySortMode.ModifiedNewest;
 
         return sortKind switch
         {
-            VaultEntrySortKind.NameAscending =>
+            EntrySortMode.NameAscending =>
                 entries
                     .OrderBy(
                         entry => entry.Name,
@@ -4398,7 +4415,7 @@ public partial class MainVaultViewModel :
                     .ThenByDescending(
                         entry => entry.ModifiedUtc),
 
-            VaultEntrySortKind.NameDescending =>
+            EntrySortMode.NameDescending =>
                 entries
                     .OrderByDescending(
                         entry => entry.Name,
@@ -4406,7 +4423,7 @@ public partial class MainVaultViewModel :
                     .ThenByDescending(
                         entry => entry.ModifiedUtc),
 
-            VaultEntrySortKind.CreatedNewest =>
+            EntrySortMode.CreatedNewest =>
                 entries
                     .OrderByDescending(
                         entry => entry.CreatedUtc)
@@ -4414,7 +4431,7 @@ public partial class MainVaultViewModel :
                         entry => entry.Name,
                         StringComparer.OrdinalIgnoreCase),
 
-            VaultEntrySortKind.CreatedOldest =>
+            EntrySortMode.CreatedOldest =>
                 entries
                     .OrderBy(
                         entry => entry.CreatedUtc)
@@ -4422,7 +4439,7 @@ public partial class MainVaultViewModel :
                         entry => entry.Name,
                         StringComparer.OrdinalIgnoreCase),
 
-            VaultEntrySortKind.TimelineNewest =>
+            EntrySortMode.TimelineNewest =>
                 entries
                     .OrderByDescending(
                         entry => entry.EffectiveTimelineDate)
@@ -4431,7 +4448,7 @@ public partial class MainVaultViewModel :
                     .ThenBy(
                         entry => entry.EntryId),
 
-            VaultEntrySortKind.TimelineOldest =>
+            EntrySortMode.TimelineOldest =>
                 entries
                     .OrderBy(
                         entry => entry.EffectiveTimelineDate)
@@ -4440,7 +4457,7 @@ public partial class MainVaultViewModel :
                     .ThenBy(
                         entry => entry.EntryId),
 
-            VaultEntrySortKind.ModifiedOldest =>
+            EntrySortMode.ModifiedOldest =>
                 entries
                     .OrderBy(
                         entry => entry.ModifiedUtc)
@@ -4456,6 +4473,64 @@ public partial class MainVaultViewModel :
                         entry => entry.Name,
                         StringComparer.OrdinalIgnoreCase)
         };
+    }
+
+    private EntrySortMode GetSelectedSortMode()
+    {
+        return _selectedFolder?.Kind switch
+        {
+            VaultFolderFilterKind.Root =>
+                _session.RootSortMode,
+
+            VaultFolderFilterKind.Folder
+                when _selectedFolder?.FolderId is Guid folderId =>
+                    _session.GetFolderSortMode(folderId),
+
+            _ => _session.AllEntriesSortMode
+        };
+    }
+
+    private void SetSelectedSortMode(
+        EntrySortMode sortMode)
+    {
+        switch (_selectedFolder?.Kind)
+        {
+            case VaultFolderFilterKind.Root:
+                _session.SetRootSortMode(sortMode);
+                break;
+
+            case VaultFolderFilterKind.Folder
+                when _selectedFolder?.FolderId is Guid folderId:
+                _session.SetFolderSortMode(folderId, sortMode);
+                break;
+
+            default:
+                _session.SetAllEntriesSortMode(sortMode);
+                break;
+        }
+    }
+
+    private void LoadSelectedSortPreference()
+    {
+        VaultEntrySortOptionViewModel option =
+            VaultEntrySortOptionViewModel.FromMode(
+                GetSelectedSortMode());
+
+        if (ReferenceEquals(SelectedSortOption, option))
+        {
+            return;
+        }
+
+        _isLoadingSortPreference = true;
+
+        try
+        {
+            SelectedSortOption = option;
+        }
+        finally
+        {
+            _isLoadingSortPreference = false;
+        }
     }
 
     private void RefreshSessionFlags()

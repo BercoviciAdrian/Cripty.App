@@ -26,13 +26,16 @@ public sealed class VaultManifest
     public IReadOnlyList<EntryDescriptor> Entries =>
         _entriesView;
 
+    public VaultSortPreferences SortPreferences { get; }
+
     public VaultManifest(
         int schemaVersion,
         Guid vaultId,
         long generation,
         IEnumerable<FolderDescriptor> folders,
         IEnumerable<TagDescriptor> tags,
-        IEnumerable<EntryDescriptor> entries)
+        IEnumerable<EntryDescriptor> entries,
+        VaultSortPreferences? sortPreferences = null)
     {
         SchemaVersion = schemaVersion;
         VaultId = vaultId;
@@ -45,6 +48,9 @@ public sealed class VaultManifest
         _foldersView = _folders.AsReadOnly();
         _tagsView = _tags.AsReadOnly();
         _entriesView = _entries.AsReadOnly();
+
+        SortPreferences =
+            sortPreferences ?? new VaultSortPreferences();
     }
 
     // Entries
@@ -197,6 +203,38 @@ public sealed class VaultManifest
         }
 
         _folders.Remove(folder);
+        SortPreferences.RemoveFolder(folderId);
+    }
+
+    // Browser sort preferences
+
+    public void SetAllEntriesSortMode(
+        EntrySortMode sortMode)
+    {
+        SortPreferences.SetAllEntriesSortMode(sortMode);
+    }
+
+    public void SetRootSortMode(
+        EntrySortMode sortMode)
+    {
+        SortPreferences.SetRootSortMode(sortMode);
+    }
+
+    public void SetFolderSortMode(
+        Guid folderId,
+        EntrySortMode sortMode)
+    {
+        EnsureFolderExists(folderId);
+        SortPreferences.SetFolderSortMode(
+            folderId,
+            sortMode);
+    }
+
+    public EntrySortMode GetFolderSortMode(
+        Guid folderId)
+    {
+        EnsureFolderExists(folderId);
+        return SortPreferences.GetFolderSortMode(folderId);
     }
 
     public void RenameFolder(

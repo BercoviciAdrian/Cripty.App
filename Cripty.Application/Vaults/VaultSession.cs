@@ -174,6 +174,21 @@ public sealed class VaultSession : IAsyncDisposable
             (IReadOnlyList<EntryDescriptor>)
             Manifest.Entries.ToArray());
 
+    public EntrySortMode AllEntriesSortMode =>
+        ReadState(() =>
+            Manifest.SortPreferences.AllEntriesSortMode);
+
+    public EntrySortMode RootSortMode =>
+        ReadState(() =>
+            Manifest.SortPreferences.RootSortMode);
+
+    public EntrySortMode GetFolderSortMode(
+        Guid folderId)
+    {
+        return ReadState(() =>
+            Manifest.GetFolderSortMode(folderId));
+    }
+
     public IReadOnlyCollection<Guid>
         EntriesPendingDeletion =>
         ReadState(() =>
@@ -308,7 +323,8 @@ public sealed class VaultSession : IAsyncDisposable
                     checked(manifest.Generation + 1),
                     manifest.Folders,
                     manifest.Tags,
-                    manifest.Entries);
+                    manifest.Entries,
+                    manifest.SortPreferences);
 
                 VaultFile upgradedVaultFile =
                     vaultFileCodec.UpdateManifest(
@@ -921,6 +937,56 @@ public sealed class VaultSession : IAsyncDisposable
         });
     }
 
+    // Browser sort preferences
+
+    public void SetAllEntriesSortMode(
+        EntrySortMode sortMode)
+    {
+        MutateState(() =>
+        {
+            if (Manifest.SortPreferences.AllEntriesSortMode ==
+                sortMode)
+            {
+                return;
+            }
+
+            Manifest.SetAllEntriesSortMode(sortMode);
+            RecordManifestChange(rebuildIndex: false);
+        });
+    }
+
+    public void SetRootSortMode(
+        EntrySortMode sortMode)
+    {
+        MutateState(() =>
+        {
+            if (Manifest.SortPreferences.RootSortMode ==
+                sortMode)
+            {
+                return;
+            }
+
+            Manifest.SetRootSortMode(sortMode);
+            RecordManifestChange(rebuildIndex: false);
+        });
+    }
+
+    public void SetFolderSortMode(
+        Guid folderId,
+        EntrySortMode sortMode)
+    {
+        MutateState(() =>
+        {
+            if (Manifest.GetFolderSortMode(folderId) == sortMode)
+            {
+                return;
+            }
+
+            Manifest.SetFolderSortMode(folderId, sortMode);
+            RecordManifestChange(rebuildIndex: false);
+        });
+    }
+
     // Tag operations
 
     public TagDescriptor CreateTag(
@@ -1362,7 +1428,8 @@ public sealed class VaultSession : IAsyncDisposable
             newGeneration,
             Manifest.Folders,
             Manifest.Tags,
-            entriesToPersist);
+            entriesToPersist,
+            Manifest.SortPreferences);
 
         VaultFile updatedVaultFile =
             _vaultFileCodec.UpdateManifest(

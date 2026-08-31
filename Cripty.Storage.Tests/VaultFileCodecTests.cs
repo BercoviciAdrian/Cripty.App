@@ -715,4 +715,40 @@ public sealed class VaultFileCodecTests
             CryptographicOperations.ZeroMemory(destination);
         }
     }
+
+    [TestMethod]
+    public void Create_FolderSortPreferenceForMissingFolder_Throws()
+    {
+        Guid vaultId = Guid.NewGuid();
+        byte[] rootKey = CodecTestData.CreateRootKey();
+
+        VaultManifest invalidManifest = new(
+            CodecTestData.CurrentManifestSchemaVersion,
+            vaultId,
+            generation: 1,
+            folders: [],
+            tags: [],
+            entries: [],
+            sortPreferences: new VaultSortPreferences(
+                folderSortModes:
+                    new Dictionary<Guid, EntrySortMode>
+                    {
+                        [Guid.NewGuid()] =
+                            EntrySortMode.NameAscending
+                    }));
+
+        try
+        {
+            Assert.ThrowsExactly<InvalidDataException>(() =>
+                new VaultFileCodec().Create(
+                    invalidManifest,
+                    rootKey,
+                    Password,
+                    CodecTestData.TestKdfParameters));
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(rootKey);
+        }
+    }
 }
