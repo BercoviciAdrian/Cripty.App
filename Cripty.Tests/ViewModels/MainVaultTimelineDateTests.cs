@@ -1,3 +1,4 @@
+using Avalonia.Controls;
 using Cripty.Application.Vaults;
 using Cripty.Core.Vaults;
 using Cripty.Cryptography.Keys;
@@ -32,6 +33,26 @@ public sealed class MainVaultTimelineDateTests
                 _vaultDirectory,
                 recursive: true);
         }
+    }
+
+    [TestMethod]
+    public void TimelineDateSelection_MatchesCalendarPickerValueType()
+    {
+        Type pickerValueType =
+            typeof(CalendarDatePicker)
+                .GetProperty(
+                    nameof(CalendarDatePicker.SelectedDate))!
+                .PropertyType;
+
+        Type viewModelValueType =
+            typeof(MainVaultViewModel)
+                .GetProperty(
+                    nameof(MainVaultViewModel.TimelineDateSelection))!
+                .PropertyType;
+
+        Assert.AreEqual(
+            pickerValueType,
+            viewModelValueType);
     }
 
     [TestMethod]
@@ -75,14 +96,14 @@ public sealed class MainVaultTimelineDateTests
             original.EffectiveTimelineDate.AddDays(-30);
 
         viewModel.TimelineDateSelection =
-            new DateTimeOffset(
+            new DateTime(
                 timelineDate.Year,
                 timelineDate.Month,
                 timelineDate.Day,
                 0,
                 0,
                 0,
-                TimeSpan.Zero);
+                DateTimeKind.Unspecified);
 
         Assert.IsTrue(
             viewModel.ApplyTimelineDateCommand.CanExecute(null));

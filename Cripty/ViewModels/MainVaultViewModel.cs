@@ -518,7 +518,7 @@ public partial class MainVaultViewModel :
     }
 
     [ObservableProperty]
-    public partial DateTimeOffset? TimelineDateSelection
+    public partial DateTime? TimelineDateSelection
     {
         get;
         set;
@@ -873,7 +873,7 @@ public partial class MainVaultViewModel :
     private bool CanApplyTimelineDate()
     {
         if (!CanInteractWithTimelineDateDialog() ||
-            TimelineDateSelection is not DateTimeOffset selection)
+            TimelineDateSelection is not DateTime selection)
         {
             return false;
         }
@@ -1244,7 +1244,7 @@ public partial class MainVaultViewModel :
     }
 
     partial void OnTimelineDateSelectionChanged(
-        DateTimeOffset? value)
+        DateTime? value)
     {
         ApplyTimelineDateCommand.NotifyCanExecuteChanged();
     }
@@ -1581,14 +1581,14 @@ public partial class MainVaultViewModel :
             descriptor.EffectiveTimelineDate;
 
         TimelineDateSelection =
-            new DateTimeOffset(
+            new DateTime(
                 initialDate.Year,
                 initialDate.Month,
                 initialDate.Day,
                 0,
                 0,
                 0,
-                TimeSpan.Zero);
+                DateTimeKind.Unspecified);
 
         TimelineDateDialogDescription =
             $"Choose where '{descriptor.Name}' belongs in timeline " +
@@ -1615,7 +1615,7 @@ public partial class MainVaultViewModel :
     [RelayCommand(CanExecute = nameof(CanApplyTimelineDate))]
     private void ApplyTimelineDate()
     {
-        DateTimeOffset selection =
+        DateTime selection =
             TimelineDateSelection ??
             throw new InvalidOperationException(
                 "Choose a timeline date before applying it.");
