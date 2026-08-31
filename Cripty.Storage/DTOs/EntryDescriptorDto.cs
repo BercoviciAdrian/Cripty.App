@@ -14,4 +14,7 @@ public sealed class EntryDescriptorDto
 
     public required DateTimeOffset CreatedUtc { get; init; }
     public required DateTimeOffset ModifiedUtc { get; init; }
+
+    // Optional for backwards-compatible reads of manifest schema 1.
+    public DateOnly? TimelineDateOverride { get; init; }
 }

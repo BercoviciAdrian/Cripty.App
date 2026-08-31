@@ -19,6 +19,8 @@ public enum VaultEntrySortKind
     NameDescending,
     CreatedNewest,
     CreatedOldest,
+    TimelineNewest,
+    TimelineOldest,
     ModifiedNewest,
     ModifiedOldest
 }
@@ -66,6 +68,20 @@ public sealed class VaultEntrySortOptionViewModel
             "CREATED · OLDEST");
 
     public static VaultEntrySortOptionViewModel
+        TimelineNewest
+    { get; } =
+        new(
+            VaultEntrySortKind.TimelineNewest,
+            "TIMELINE · NEWEST");
+
+    public static VaultEntrySortOptionViewModel
+        TimelineOldest
+    { get; } =
+        new(
+            VaultEntrySortKind.TimelineOldest,
+            "TIMELINE · OLDEST");
+
+    public static VaultEntrySortOptionViewModel
         ModifiedNewest
     { get; } =
         new(
@@ -87,6 +103,8 @@ public sealed class VaultEntrySortOptionViewModel
             NameDescending,
             CreatedNewest,
             CreatedOldest,
+            TimelineNewest,
+            TimelineOldest,
             ModifiedNewest,
             ModifiedOldest
         ];
@@ -324,6 +342,9 @@ public partial class VaultFolderEntryListItemViewModel :
     private readonly Action<
         VaultFolderEntryListItemViewModel>? _rename;
 
+    private readonly Action<
+        VaultFolderEntryListItemViewModel>? _setTimelineDate;
+
     public VaultFolderEntryListItemViewModel(
         Guid entryId,
         Guid? folderId,
@@ -334,7 +355,9 @@ public partial class VaultFolderEntryListItemViewModel :
         bool isCopySelectionMode = false,
         bool isCopySelected = false,
         Action<VaultFolderEntryListItemViewModel>?
-            rename = null)
+            rename = null,
+        Action<VaultFolderEntryListItemViewModel>?
+            setTimelineDate = null)
     {
         EntryId = entryId;
         FolderId = folderId;
@@ -362,6 +385,7 @@ public partial class VaultFolderEntryListItemViewModel :
                 nameof(select));
 
         _rename = rename;
+        _setTimelineDate = setTimelineDate;
     }
 
     public Guid EntryId { get; }
@@ -389,6 +413,11 @@ public partial class VaultFolderEntryListItemViewModel :
         !IsPendingDeletion &&
         _rename is not null;
 
+    public bool CanSetTimelineDate =>
+        !IsCopySelectionMode &&
+        !IsPendingDeletion &&
+        _setTimelineDate is not null;
+
     [ObservableProperty]
     public partial bool IsSelected
     {
@@ -413,6 +442,12 @@ public partial class VaultFolderEntryListItemViewModel :
     private void Rename()
     {
         _rename?.Invoke(this);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSetTimelineDate))]
+    private void SetTimelineDate()
+    {
+        _setTimelineDate?.Invoke(this);
     }
 
     internal void SetSelected(
@@ -503,6 +538,9 @@ public partial class VaultEntryListItemViewModel :
     private readonly Action<VaultEntryListItemViewModel>
         _select;
 
+    private readonly Action<VaultEntryListItemViewModel>?
+        _setTimelineDate;
+
     public VaultEntryListItemViewModel(
         Guid entryId,
         string name,
@@ -511,10 +549,13 @@ public partial class VaultEntryListItemViewModel :
         long revision,
         DateTimeOffset createdUtc,
         DateTimeOffset modifiedUtc,
+        DateOnly? timelineDateOverride,
         EntrySessionState sessionState,
         Action<VaultEntryListItemViewModel> select,
         bool isCopySelectionMode = false,
-        bool isCopySelected = false)
+        bool isCopySelected = false,
+        Action<VaultEntryListItemViewModel>?
+            setTimelineDate = null)
     {
         EntryId = entryId;
         Name = name;
@@ -544,9 +585,18 @@ public partial class VaultEntryListItemViewModel :
         ModifiedText =
             $"MODIF {modifiedUtc.ToLocalTime():yyyy-MM-dd HH:mm}";
 
+        TimelineText = timelineDateOverride.HasValue
+            ? $"TIMELINE {timelineDateOverride.Value:yyyy-MM-dd}"
+            : string.Empty;
+
+        HasTimelineDateOverride =
+            timelineDateOverride.HasValue;
+
         _select = select ??
             throw new ArgumentNullException(
                 nameof(select));
+
+        _setTimelineDate = setTimelineDate;
     }
 
     public Guid EntryId { get; }
@@ -563,6 +613,10 @@ public partial class VaultEntryListItemViewModel :
 
     public string ModifiedText { get; }
 
+    public string TimelineText { get; }
+
+    public bool HasTimelineDateOverride { get; }
+
     public bool IsPendingDeletion { get; }
 
     public bool IsNewEntry { get; }
@@ -574,6 +628,11 @@ public partial class VaultEntryListItemViewModel :
     public bool IsCopySelectable =>
         IsCopySelectionMode &&
         !IsPendingDeletion;
+
+    public bool CanSetTimelineDate =>
+        !IsCopySelectionMode &&
+        !IsPendingDeletion &&
+        _setTimelineDate is not null;
 
     [ObservableProperty]
     public partial bool IsSelected
@@ -593,6 +652,12 @@ public partial class VaultEntryListItemViewModel :
     private void Select()
     {
         _select(this);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanSetTimelineDate))]
+    private void SetTimelineDate()
+    {
+        _setTimelineDate?.Invoke(this);
     }
 
     internal void SetSelected(

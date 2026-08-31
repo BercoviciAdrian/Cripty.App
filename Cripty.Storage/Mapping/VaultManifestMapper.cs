@@ -114,7 +114,9 @@ public static class VaultManifestMapper
             TagIds = entry.TagIds.ToList(),
             Revision = entry.Revision,
             CreatedUtc = entry.CreatedUtc,
-            ModifiedUtc = entry.ModifiedUtc
+            ModifiedUtc = entry.ModifiedUtc,
+            TimelineDateOverride =
+                entry.TimelineDateOverride
         };
     }
 
@@ -135,6 +137,7 @@ public static class VaultManifestMapper
             tagIds,
             dto.Revision,
             dto.CreatedUtc,
-            dto.ModifiedUtc);
+            dto.ModifiedUtc,
+            dto.TimelineDateOverride);
     }
 }

@@ -41,8 +41,10 @@ internal static class VaultManifestValidator
     public static void ValidateSchemaVersion(
         int schemaVersion)
     {
-        if (schemaVersion !=
-            StorageSchemaVersions.CurrentManifest)
+        if (schemaVersion <
+                StorageSchemaVersions.OldestSupportedManifest ||
+            schemaVersion >
+                StorageSchemaVersions.CurrentManifest)
         {
             throw new NotSupportedException(
                 $"Manifest schema version " +

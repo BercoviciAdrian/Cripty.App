@@ -17,6 +17,12 @@ public sealed class EntryDescriptor
     public DateTimeOffset CreatedUtc { get; }
     public DateTimeOffset ModifiedUtc { get; private set; }
 
+    public DateOnly? TimelineDateOverride { get; private set; }
+
+    public DateOnly EffectiveTimelineDate =>
+        TimelineDateOverride ??
+        DateOnly.FromDateTime(CreatedUtc.UtcDateTime);
+
     public EntryDescriptor(
         Guid entryId,
         string name,
@@ -24,7 +30,8 @@ public sealed class EntryDescriptor
         IEnumerable<Guid> tagIds,
         long revision,
         DateTimeOffset createdUtc,
-        DateTimeOffset modifiedUtc)
+        DateTimeOffset modifiedUtc,
+        DateOnly? timelineDateOverride = null)
     {
         EntryId = entryId;
         Name = name;
@@ -36,6 +43,7 @@ public sealed class EntryDescriptor
         Revision = revision;
         CreatedUtc = createdUtc;
         ModifiedUtc = modifiedUtc;
+        TimelineDateOverride = timelineDateOverride;
     }
 
     internal void Rename(string name)
@@ -56,6 +64,12 @@ public sealed class EntryDescriptor
     internal void RemoveTag(Guid tagId)
     {
         _tagIds.Remove(tagId);
+    }
+
+    internal void SetTimelineDateOverride(
+        DateOnly? timelineDateOverride)
+    {
+        TimelineDateOverride = timelineDateOverride;
     }
 
     internal void RecordCommit(

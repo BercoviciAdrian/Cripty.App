@@ -72,6 +72,10 @@ public partial class MainVaultViewModel :
 
     private DialogAction _dialogAction;
 
+    private Guid _timelineDateEntryId;
+    private DateOnly? _originalTimelineDateOverride;
+    private DateOnly _timelineDateFallback;
+
     public MainVaultViewModel(
         string vaultName,
         VaultSession session,
@@ -507,6 +511,41 @@ public partial class MainVaultViewModel :
     }
 
     [ObservableProperty]
+    public partial bool IsTimelineDateDialogOpen
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
+    public partial DateTimeOffset? TimelineDateSelection
+    {
+        get;
+        set;
+    }
+
+    [ObservableProperty]
+    public partial string TimelineDateDialogDescription
+    {
+        get;
+        private set;
+    } = string.Empty;
+
+    [ObservableProperty]
+    public partial string TimelineDateFallbackText
+    {
+        get;
+        private set;
+    } = string.Empty;
+
+    [ObservableProperty]
+    public partial bool HasTimelineDateOverride
+    {
+        get;
+        private set;
+    }
+
+    [ObservableProperty]
     public partial bool IsDialogOpen
     {
         get;
@@ -755,7 +794,8 @@ public partial class MainVaultViewModel :
                !IsPasswordChangeOpen &&
                !IsMoveDialogOpen &&
                !IsCopySelectionMode &&
-               !IsCopyDialogOpen;
+               !IsCopyDialogOpen &&
+               !IsTimelineDateDialogOpen;
     }
 
     private bool CanEnterCopySelection()
@@ -815,6 +855,47 @@ public partial class MainVaultViewModel :
         return CanMutateVault() &&
                _selectedEntry is not null &&
                !_selectedEntry.IsPendingDeletion;
+    }
+
+    private bool CanOpenTimelineDate()
+    {
+        return CanMutateVault() &&
+               _selectedEntry is not null &&
+               !_selectedEntry.IsPendingDeletion;
+    }
+
+    private bool CanInteractWithTimelineDateDialog()
+    {
+        return IsTimelineDateDialogOpen &&
+               !IsBusy;
+    }
+
+    private bool CanApplyTimelineDate()
+    {
+        if (!CanInteractWithTimelineDateDialog() ||
+            TimelineDateSelection is not DateTimeOffset selection)
+        {
+            return false;
+        }
+
+        DateOnly selectedDate = new(
+            selection.Year,
+            selection.Month,
+            selection.Day);
+
+        DateOnly? newOverride =
+            selectedDate == _timelineDateFallback
+                ? null
+                : selectedDate;
+
+        return newOverride !=
+            _originalTimelineDateOverride;
+    }
+
+    private bool CanClearTimelineDate()
+    {
+        return CanInteractWithTimelineDateDialog() &&
+               HasTimelineDateOverride;
     }
 
     private bool CanOpenEntry()
@@ -1153,6 +1234,21 @@ public partial class MainVaultViewModel :
         ConfirmMoveDialogCommand.NotifyCanExecuteChanged();
     }
 
+    partial void OnIsTimelineDateDialogOpenChanged(
+        bool value)
+    {
+        NotifyCommandStates();
+        ApplyTimelineDateCommand.NotifyCanExecuteChanged();
+        ClearTimelineDateCommand.NotifyCanExecuteChanged();
+        CancelTimelineDateDialogCommand.NotifyCanExecuteChanged();
+    }
+
+    partial void OnTimelineDateSelectionChanged(
+        DateTimeOffset? value)
+    {
+        ApplyTimelineDateCommand.NotifyCanExecuteChanged();
+    }
+
     partial void OnMoveDialogErrorMessageChanged(
         string? value)
     {
@@ -1460,6 +1556,108 @@ public partial class MainVaultViewModel :
             entry.EntryId,
             entry.Name,
             descriptor.FolderId);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanOpenTimelineDate))]
+    private void OpenTimelineDate()
+    {
+        VaultEntryListItemViewModel selectedEntry =
+            _selectedEntry ??
+            throw new InvalidOperationException(
+                "Select an entry before setting its timeline date.");
+
+        EntryDescriptor descriptor =
+            _session.Entries.Single(entry =>
+                entry.EntryId == selectedEntry.EntryId);
+
+        _timelineDateEntryId = descriptor.EntryId;
+        _originalTimelineDateOverride =
+            descriptor.TimelineDateOverride;
+        _timelineDateFallback =
+            DateOnly.FromDateTime(
+                descriptor.CreatedUtc.UtcDateTime);
+
+        DateOnly initialDate =
+            descriptor.EffectiveTimelineDate;
+
+        TimelineDateSelection =
+            new DateTimeOffset(
+                initialDate.Year,
+                initialDate.Month,
+                initialDate.Day,
+                0,
+                0,
+                0,
+                TimeSpan.Zero);
+
+        TimelineDateDialogDescription =
+            $"Choose where '{descriptor.Name}' belongs in timeline " +
+            "sorting. Its real creation and modification times remain " +
+            "unchanged.";
+
+        TimelineDateFallbackText =
+            $"WITHOUT OVERRIDE · CREATED {_timelineDateFallback:yyyy-MM-dd}";
+
+        HasTimelineDateOverride =
+            descriptor.TimelineDateOverride.HasValue;
+
+        ClearError();
+        IsTimelineDateDialogOpen = true;
+    }
+
+    [RelayCommand(
+        CanExecute = nameof(CanInteractWithTimelineDateDialog))]
+    private void CancelTimelineDateDialog()
+    {
+        CloseTimelineDateDialog();
+    }
+
+    [RelayCommand(CanExecute = nameof(CanApplyTimelineDate))]
+    private void ApplyTimelineDate()
+    {
+        DateTimeOffset selection =
+            TimelineDateSelection ??
+            throw new InvalidOperationException(
+                "Choose a timeline date before applying it.");
+
+        DateOnly selectedDate = new(
+            selection.Year,
+            selection.Month,
+            selection.Day);
+
+        DateOnly? timelineDateOverride =
+            selectedDate == _timelineDateFallback
+                ? null
+                : selectedDate;
+
+        Guid entryId = _timelineDateEntryId;
+
+        _session.SetEntryTimelineDate(
+            entryId,
+            timelineDateOverride);
+
+        CloseTimelineDateDialog();
+        RefreshBrowser(selectedEntryId: entryId);
+
+        RecordUnsavedChange(
+            timelineDateOverride.HasValue
+                ? "TIMELINE DATE UPDATED"
+                : "TIMELINE DATE RESET TO CREATION");
+    }
+
+    [RelayCommand(CanExecute = nameof(CanClearTimelineDate))]
+    private void ClearTimelineDate()
+    {
+        Guid entryId = _timelineDateEntryId;
+
+        _session.SetEntryTimelineDate(
+            entryId,
+            timelineDateOverride: null);
+
+        CloseTimelineDateDialog();
+        RefreshBrowser(selectedEntryId: entryId);
+        RecordUnsavedChange(
+            "TIMELINE DATE RESET TO CREATION");
     }
 
     [RelayCommand(CanExecute = nameof(CanDeleteFolder))]
@@ -3071,6 +3269,7 @@ public partial class MainVaultViewModel :
         CloseEntryEditorWithoutRefresh();
 
         ClearPasswordChangeInputs();
+        CloseTimelineDateDialog();
         CopyPassword = string.Empty;
         DialogInput = string.Empty;
     }
@@ -3081,7 +3280,8 @@ public partial class MainVaultViewModel :
         if (IsBusy ||
             IsDialogOpen ||
             IsMoveDialogOpen ||
-            IsCopyDialogOpen)
+            IsCopyDialogOpen ||
+            IsTimelineDateDialogOpen)
         {
             return;
         }
@@ -3214,12 +3414,49 @@ public partial class MainVaultViewModel :
             selectedEntry.Name);
     }
 
+    private void SetTimelineDateFromContextMenu(
+        VaultFolderEntryListItemViewModel entry)
+    {
+        if (!CanMutateVault() ||
+            !FolderItems.Contains(entry) ||
+            entry.IsPendingDeletion)
+        {
+            return;
+        }
+
+        SelectFolderEntry(entry);
+
+        if (CanOpenTimelineDate())
+        {
+            OpenTimelineDate();
+        }
+    }
+
+    private void SetTimelineDateFromEntryList(
+        VaultEntryListItemViewModel entry)
+    {
+        if (!CanMutateVault() ||
+            !EntryItems.Contains(entry) ||
+            entry.IsPendingDeletion)
+        {
+            return;
+        }
+
+        SelectEntry(entry);
+
+        if (CanOpenTimelineDate())
+        {
+            OpenTimelineDate();
+        }
+    }
+
     private void ToggleFolderExpansion(
         VaultFolderListItemViewModel folder)
     {
         if (IsBusy ||
             IsDialogOpen ||
             IsMoveDialogOpen ||
+            IsTimelineDateDialogOpen ||
             !folder.IsExpandable)
         {
             return;
@@ -3328,7 +3565,8 @@ public partial class MainVaultViewModel :
     {
         if (IsBusy ||
             IsDialogOpen ||
-            IsMoveDialogOpen)
+            IsMoveDialogOpen ||
+            IsTimelineDateDialogOpen)
         {
             return;
         }
@@ -3384,7 +3622,8 @@ public partial class MainVaultViewModel :
         if (IsBusy ||
             IsDialogOpen ||
             IsMoveDialogOpen ||
-            IsCopyDialogOpen)
+            IsCopyDialogOpen ||
+            IsTimelineDateDialogOpen)
         {
             return;
         }
@@ -3407,6 +3646,7 @@ public partial class MainVaultViewModel :
         DeleteEntryCommand.NotifyCanExecuteChanged();
         OpenEntryCommand.NotifyCanExecuteChanged();
         OpenEntryMoveCommand.NotifyCanExecuteChanged();
+        OpenTimelineDateCommand.NotifyCanExecuteChanged();
     }
 
     private void SelectFolderEntry(
@@ -3424,7 +3664,8 @@ public partial class MainVaultViewModel :
         if (IsBusy ||
             IsDialogOpen ||
             IsMoveDialogOpen ||
-            IsCopyDialogOpen)
+            IsCopyDialogOpen ||
+            IsTimelineDateDialogOpen)
         {
             return;
         }
@@ -3780,7 +4021,8 @@ public partial class MainVaultViewModel :
                         IsCopySelectionMode,
                         _copySelectedEntryIds.Contains(
                             entry.EntryId),
-                        RenameEntryFromContextMenu));
+                        RenameEntryFromContextMenu,
+                        SetTimelineDateFromContextMenu));
             }
         }
     }
@@ -3837,7 +4079,8 @@ public partial class MainVaultViewModel :
                                 IsCopySelectionMode,
                                 _copySelectedEntryIds.Contains(
                                     entry.EntryId),
-                                RenameEntryFromContextMenu))
+                                RenameEntryFromContextMenu,
+                                SetTimelineDateFromContextMenu))
                         .ToArray();
 
             bool hasChildFolders =
@@ -4062,12 +4305,14 @@ public partial class MainVaultViewModel :
                     entry.Revision,
                     entry.CreatedUtc,
                     entry.ModifiedUtc,
+                    entry.TimelineDateOverride,
                     entrySessionStates[
                         entry.EntryId],
                     SelectEntry,
                     IsCopySelectionMode,
                     _copySelectedEntryIds.Contains(
-                        entry.EntryId)));
+                        entry.EntryId),
+                    SetTimelineDateFromEntryList));
         }
 
         _selectedEntry =
@@ -4110,6 +4355,7 @@ public partial class MainVaultViewModel :
         DeleteEntryCommand.NotifyCanExecuteChanged();
         OpenEntryCommand.NotifyCanExecuteChanged();
         OpenEntryMoveCommand.NotifyCanExecuteChanged();
+        OpenTimelineDateCommand.NotifyCanExecuteChanged();
     }
 
     private IReadOnlyDictionary<Guid, EntrySessionState>
@@ -4175,6 +4421,24 @@ public partial class MainVaultViewModel :
                     .ThenBy(
                         entry => entry.Name,
                         StringComparer.OrdinalIgnoreCase),
+
+            VaultEntrySortKind.TimelineNewest =>
+                entries
+                    .OrderByDescending(
+                        entry => entry.EffectiveTimelineDate)
+                    .ThenByDescending(
+                        entry => entry.CreatedUtc)
+                    .ThenBy(
+                        entry => entry.EntryId),
+
+            VaultEntrySortKind.TimelineOldest =>
+                entries
+                    .OrderBy(
+                        entry => entry.EffectiveTimelineDate)
+                    .ThenBy(
+                        entry => entry.CreatedUtc)
+                    .ThenBy(
+                        entry => entry.EntryId),
 
             VaultEntrySortKind.ModifiedOldest =>
                 entries
@@ -4322,6 +4586,18 @@ public partial class MainVaultViewModel :
         DialogErrorMessage = null;
         IsDialogInputVisible = false;
         IsDialogDestructive = false;
+    }
+
+    private void CloseTimelineDateDialog()
+    {
+        IsTimelineDateDialogOpen = false;
+        TimelineDateSelection = null;
+        TimelineDateDialogDescription = string.Empty;
+        TimelineDateFallbackText = string.Empty;
+        HasTimelineDateOverride = false;
+        _timelineDateEntryId = Guid.Empty;
+        _originalTimelineDateOverride = null;
+        _timelineDateFallback = default;
     }
 
     private void ClosePasswordChange()
@@ -4475,6 +4751,10 @@ public partial class MainVaultViewModel :
         OpenFolderMoveCommand.NotifyCanExecuteChanged();
         OpenEntryCommand.NotifyCanExecuteChanged();
         OpenEntryMoveCommand.NotifyCanExecuteChanged();
+        OpenTimelineDateCommand.NotifyCanExecuteChanged();
+        ApplyTimelineDateCommand.NotifyCanExecuteChanged();
+        ClearTimelineDateCommand.NotifyCanExecuteChanged();
+        CancelTimelineDateDialogCommand.NotifyCanExecuteChanged();
         DeleteFolderCommand.NotifyCanExecuteChanged();
         DeleteTagCommand.NotifyCanExecuteChanged();
         DeleteEntryCommand.NotifyCanExecuteChanged();

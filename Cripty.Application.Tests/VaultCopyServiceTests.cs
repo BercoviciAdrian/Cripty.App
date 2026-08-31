@@ -59,6 +59,7 @@ public sealed class VaultCopyServiceTests
             Guid selectedFolderId;
             DateTimeOffset sourceCreatedUtc;
             DateTimeOffset sourceModifiedUtc;
+            DateOnly sourceTimelineDate = new(1987, 9, 3);
             int sourceEntryCount;
 
             await using VaultSession source =
@@ -102,6 +103,10 @@ public sealed class VaultCopyServiceTests
                     [sharedTag.TagId, imageTag.TagId]);
 
             sourceImageEntryId = imageEntry.EntryId;
+
+            source.SetEntryTimelineDate(
+                sourceImageEntryId,
+                sourceTimelineDate);
 
             source.ReplaceEntryWithBlob(
                 new VaultEntry(
@@ -266,6 +271,10 @@ public sealed class VaultCopyServiceTests
             Assert.AreEqual(
                 sourceModifiedUtc,
                 copiedImageDescriptor.ModifiedUtc);
+
+            Assert.AreEqual(
+                sourceTimelineDate,
+                copiedImageDescriptor.TimelineDateOverride);
 
             TagDescriptor copiedSharedTag =
                 copied.Tags.Single(tag =>

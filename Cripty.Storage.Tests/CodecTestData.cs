@@ -7,7 +7,8 @@ namespace Cripty.Storage.Tests;
 
 internal static class CodecTestData
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentEntrySchemaVersion = 1;
+    public const int CurrentManifestSchemaVersion = 2;
 
     /*
      * These are the smallest parameters currently accepted by
@@ -35,7 +36,7 @@ internal static class CodecTestData
     }
 
     public static VaultEntry CreateMixedEntry(
-        int schemaVersion = CurrentSchemaVersion,
+        int schemaVersion = CurrentEntrySchemaVersion,
         Guid? entryId = null)
     {
         return new VaultEntry(
@@ -63,7 +64,7 @@ internal static class CodecTestData
     public static VaultManifest CreateManifest(
         Guid vaultId,
         long generation = 4,
-        int schemaVersion = CurrentSchemaVersion,
+        int schemaVersion = CurrentManifestSchemaVersion,
         string entryName = "Primary account")
     {
         Guid rootFolderId = Guid.NewGuid();
@@ -119,7 +120,11 @@ internal static class CodecTestData
                     [tagId],
                     revision: 7,
                     createdUtc,
-                    modifiedUtc)
+                    modifiedUtc,
+                    timelineDateOverride:
+                        schemaVersion >= 2
+                            ? new DateOnly(2026, 7, 22)
+                            : null)
             ]);
     }
 
@@ -275,6 +280,10 @@ internal static class CodecTestData
             Assert.AreEqual(
                 expectedEntry.ModifiedUtc,
                 actualEntry.ModifiedUtc);
+
+            Assert.AreEqual(
+                expectedEntry.TimelineDateOverride,
+                actualEntry.TimelineDateOverride);
 
             CollectionAssert.AreEqual(
                 expectedEntry.TagIds.ToList(),

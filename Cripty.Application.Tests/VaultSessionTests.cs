@@ -3,6 +3,7 @@ using Cripty.Application.Vaults;
 using Cripty.Core.Entries;
 using Cripty.Core.Vaults;
 using Cripty.Cryptography.Keys;
+using Cripty.Storage.Codecs;
 using Cripty.Storage.FileSystem;
 using Cripty.Storage.Formats;
 
@@ -120,6 +121,78 @@ public sealed class VaultSessionTests
         Assert.AreEqual(
             reopened.ManifestGeneration,
             upgraded.ManifestGeneration);
+    }
+
+    [TestMethod]
+    public async Task OpenAsync_SchemaOneVault_MigratesManifestOnce()
+    {
+        Directory.CreateDirectory(_vaultDirectory);
+
+        Guid vaultId = Guid.NewGuid();
+        const long originalGeneration = 7;
+
+        VaultManifest legacyManifest = new(
+            schemaVersion: 1,
+            vaultId: vaultId,
+            generation: originalGeneration,
+            folders: [],
+            tags: [],
+            entries: []);
+
+        byte[] rootKey =
+            new byte[VaultRootKeyGenerator.KeySize];
+
+        VaultFileStore store = new();
+
+        try
+        {
+            VaultRootKeyGenerator.Generate(rootKey);
+
+            VaultFile legacyFile =
+                new VaultFileCodec().Create(
+                    legacyManifest,
+                    rootKey,
+                    Password,
+                    TestKdfParameters);
+
+            await store.WriteAsync(
+                _vaultDirectory,
+                legacyFile);
+        }
+        finally
+        {
+            CryptographicOperations.ZeroMemory(rootKey);
+        }
+
+        await using (VaultSession opened =
+                     await VaultSession.OpenAsync(
+                         _vaultDirectory,
+                         Password))
+        {
+            Assert.AreEqual(
+                StorageSchemaVersions.CurrentManifest,
+                opened.ManifestSchemaVersion);
+
+            Assert.AreEqual(
+                originalGeneration + 1,
+                opened.ManifestGeneration);
+        }
+
+        VaultFile upgradedFile =
+            await store.ReadAsync(_vaultDirectory);
+
+        Assert.AreEqual(
+            originalGeneration + 1,
+            upgradedFile.ManifestGeneration);
+
+        await using VaultSession reopened =
+            await VaultSession.OpenAsync(
+                _vaultDirectory,
+                Password);
+
+        Assert.AreEqual(
+            originalGeneration + 1,
+            reopened.ManifestGeneration);
     }
 
     [TestMethod]
@@ -893,6 +966,9 @@ public sealed class VaultSessionTests
         Guid entryId;
         Guid destinationFolderId;
         Guid retainedTagId;
+        DateTimeOffset createdUtc;
+        DateTimeOffset modifiedUtc;
+        DateOnly timelineDate = new(1998, 4, 16);
 
         await using (VaultSession session =
                      await CreateSessionAsync())
@@ -916,6 +992,13 @@ public sealed class VaultSessionTests
                     [removedTag.TagId]);
 
             await session.SaveAsync();
+
+            EntryDescriptor initiallySavedDescriptor =
+                session.Entries.Single(descriptor =>
+                    descriptor.EntryId == entry.EntryId);
+
+            createdUtc = initiallySavedDescriptor.CreatedUtc;
+            modifiedUtc = initiallySavedDescriptor.ModifiedUtc;
 
             session.RenameEntry(
                 entry.EntryId,
@@ -950,6 +1033,10 @@ public sealed class VaultSessionTests
             session.SetTagColor(
                 retainedTag.TagId,
                 "#123456");
+
+            session.SetEntryTimelineDate(
+                entry.EntryId,
+                timelineDate);
 
             await session.SaveAsync();
 
@@ -992,6 +1079,15 @@ public sealed class VaultSessionTests
         Assert.AreEqual(
             1L,
             descriptor.Revision);
+
+        Assert.AreEqual(createdUtc, descriptor.CreatedUtc);
+        Assert.AreEqual(modifiedUtc, descriptor.ModifiedUtc);
+        Assert.AreEqual(
+            timelineDate,
+            descriptor.TimelineDateOverride);
+        Assert.AreEqual(
+            timelineDate,
+            descriptor.EffectiveTimelineDate);
 
         CollectionAssert.AreEqual(
             new[] { retainedTagId },
@@ -1171,6 +1267,7 @@ public sealed class VaultSessionTests
     {
         Guid vaultId;
         Guid entryId;
+        DateOnly timelineDate = new(1973, 11, 5);
 
         await using (VaultSession session =
                      await CreateSessionAsync())
@@ -1180,6 +1277,10 @@ public sealed class VaultSessionTests
 
             vaultId = session.VaultId;
             entryId = entry.EntryId;
+
+            session.SetEntryTimelineDate(
+                entryId,
+                timelineDate);
 
             await Assert.ThrowsExactlyAsync<
                 InvalidOperationException>(
@@ -1224,7 +1325,9 @@ public sealed class VaultSessionTests
         Assert.IsTrue(
             reopened.Entries.Any(
                 descriptor =>
-                    descriptor.EntryId == entryId));
+                    descriptor.EntryId == entryId &&
+                    descriptor.TimelineDateOverride ==
+                        timelineDate));
     }
 
     [TestMethod]

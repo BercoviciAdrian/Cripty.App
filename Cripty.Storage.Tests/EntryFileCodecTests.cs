@@ -245,7 +245,7 @@ public sealed class EntryFileCodecTests
         VaultEntry entry =
             CodecTestData.CreateMixedEntry(
                 schemaVersion:
-                    CodecTestData.CurrentSchemaVersion + 1);
+                    CodecTestData.CurrentEntrySchemaVersion + 1);
 
         EntryFileCodec codec = new();
 
@@ -282,7 +282,7 @@ public sealed class EntryFileCodecTests
         byte[] rootKey = CodecTestData.CreateRootKey();
 
         VaultEntry invalidEntry = new(
-            CodecTestData.CurrentSchemaVersion,
+            CodecTestData.CurrentEntrySchemaVersion,
             Guid.NewGuid(),
             revision: 1,
             [

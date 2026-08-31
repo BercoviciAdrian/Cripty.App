@@ -625,7 +625,7 @@ public sealed class VaultFileCodecTests
             CodecTestData.CreateManifest(
                 vaultId,
                 schemaVersion:
-                    CodecTestData.CurrentSchemaVersion + 1);
+                    CodecTestData.CurrentManifestSchemaVersion + 1);
 
         VaultFileCodec codec = new();
 
@@ -672,7 +672,7 @@ public sealed class VaultFileCodecTests
             new byte[rootKey.Length];
 
         VaultManifest invalidManifest = new(
-            CodecTestData.CurrentSchemaVersion,
+            CodecTestData.CurrentManifestSchemaVersion,
             vaultId,
             generation: 1,
             [

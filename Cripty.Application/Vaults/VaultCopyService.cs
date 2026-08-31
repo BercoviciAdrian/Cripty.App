@@ -319,7 +319,8 @@ public sealed class VaultCopyService
                         destinationTagIds[tagId]),
                     destinationFields,
                     sourceDescriptor.CreatedUtc,
-                    sourceDescriptor.ModifiedUtc);
+                    sourceDescriptor.ModifiedUtc,
+                    sourceDescriptor.TimelineDateOverride);
 
             foreach (BlobTransfer transfer in blobTransfers)
             {

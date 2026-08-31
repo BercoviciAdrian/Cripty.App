@@ -779,6 +779,8 @@ internal sealed class VaultKeyRotationService
                    pair.First.Revision == pair.Second.Revision &&
                    pair.First.CreatedUtc == pair.Second.CreatedUtc &&
                    pair.First.ModifiedUtc == pair.Second.ModifiedUtc &&
+                   pair.First.TimelineDateOverride ==
+                       pair.Second.TimelineDateOverride &&
                    string.Equals(
                        pair.First.Name,
                        pair.Second.Name,

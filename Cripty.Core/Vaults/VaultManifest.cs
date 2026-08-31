@@ -93,6 +93,14 @@ public sealed class VaultManifest
         GetEntry(entryId).Rename(RequireName(newName));
     }
 
+    public void SetEntryTimelineDate(
+        Guid entryId,
+        DateOnly? timelineDateOverride)
+    {
+        GetEntry(entryId).SetTimelineDateOverride(
+            timelineDateOverride);
+    }
+
     public void MoveEntry(
         Guid entryId,
         Guid? destinationFolderId)

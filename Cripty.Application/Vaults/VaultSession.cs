@@ -299,6 +299,33 @@ public sealed class VaultSession : IAsyncDisposable
                     password,
                     vaultRootKey);
 
+            if (manifest.SchemaVersion <
+                StorageSchemaVersions.CurrentManifest)
+            {
+                VaultManifest upgradedManifest = new(
+                    StorageSchemaVersions.CurrentManifest,
+                    manifest.VaultId,
+                    checked(manifest.Generation + 1),
+                    manifest.Folders,
+                    manifest.Tags,
+                    manifest.Entries);
+
+                VaultFile upgradedVaultFile =
+                    vaultFileCodec.UpdateManifest(
+                        vaultFile,
+                        upgradedManifest,
+                        vaultRootKey);
+
+                await vaultFileStore.WriteAsync(
+                        normalizedPath,
+                        upgradedVaultFile,
+                        cancellationToken)
+                    .ConfigureAwait(false);
+
+                manifest = upgradedManifest;
+                vaultFile = upgradedVaultFile;
+            }
+
             if (vaultFile.ManifestGeneration is null)
             {
                 vaultFile = new VaultFile
@@ -444,7 +471,8 @@ public sealed class VaultSession : IAsyncDisposable
         IEnumerable<Guid>? tagIds,
         IEnumerable<EntryField>? fields,
         DateTimeOffset createdUtc,
-        DateTimeOffset modifiedUtc)
+        DateTimeOffset modifiedUtc,
+        DateOnly? timelineDateOverride)
     {
         return MutateState(() =>
             CreateEntryCore(
@@ -454,7 +482,9 @@ public sealed class VaultSession : IAsyncDisposable
                 fields,
                 createdUtc,
                 modifiedUtc,
-                preserveTimestampsOnFirstSave: true));
+                preserveTimestampsOnFirstSave: true,
+                timelineDateOverride:
+                    timelineDateOverride));
     }
 
     public async Task<VaultEntry> GetEntryAsync(
@@ -978,6 +1008,36 @@ public sealed class VaultSession : IAsyncDisposable
         });
     }
 
+    public void SetEntryTimelineDate(
+        Guid entryId,
+        DateOnly? timelineDateOverride)
+    {
+        MutateState(() =>
+        {
+            EnsureEntryIsNotPendingDeletion(
+                entryId);
+
+            EntryDescriptor descriptor =
+                GetEntryDescriptor(entryId);
+
+            if (descriptor.TimelineDateOverride ==
+                timelineDateOverride)
+            {
+                return;
+            }
+
+            Manifest.SetEntryTimelineDate(
+                entryId,
+                timelineDateOverride);
+
+            _entriesWithPendingMetadataChanges.Add(
+                entryId);
+
+            RecordManifestChange(
+                rebuildIndex: false);
+        });
+    }
+
     public void MoveEntry(
         Guid entryId,
         Guid? destinationFolderId)
@@ -1297,7 +1357,7 @@ public sealed class VaultSession : IAsyncDisposable
             checked(Manifest.Generation + 1);
 
         VaultManifest manifestToPersist = new(
-            Manifest.SchemaVersion,
+            StorageSchemaVersions.CurrentManifest,
             Manifest.VaultId,
             newGeneration,
             Manifest.Folders,
@@ -1404,7 +1464,8 @@ public sealed class VaultSession : IAsyncDisposable
         IEnumerable<EntryField>? fields,
         DateTimeOffset createdUtc,
         DateTimeOffset modifiedUtc,
-        bool preserveTimestampsOnFirstSave)
+        bool preserveTimestampsOnFirstSave,
+        DateOnly? timelineDateOverride = null)
     {
         if (string.IsNullOrWhiteSpace(name))
         {
@@ -1439,7 +1500,8 @@ public sealed class VaultSession : IAsyncDisposable
             assignedTagIds,
             revision: 0,
             createdUtc,
-            modifiedUtc);
+            modifiedUtc,
+            timelineDateOverride);
 
         VaultEntry entry = new(
             StorageSchemaVersions.CurrentEntry,
