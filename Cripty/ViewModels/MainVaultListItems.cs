@@ -121,6 +121,9 @@ public partial class VaultFolderListItemViewModel :
     private readonly Action<VaultFolderListItemViewModel>?
         _delete;
 
+    private readonly Action<VaultFolderListItemViewModel>?
+        _rename;
+
     public VaultFolderListItemViewModel(
         VaultFolderFilterKind kind,
         Guid? folderId,
@@ -143,7 +146,9 @@ public partial class VaultFolderListItemViewModel :
         Action<VaultFolderListItemViewModel>?
             move = null,
         Action<VaultFolderListItemViewModel>?
-            delete = null)
+            delete = null,
+        Action<VaultFolderListItemViewModel>?
+            rename = null)
     {
         Kind = kind;
         FolderId = folderId;
@@ -171,6 +176,7 @@ public partial class VaultFolderListItemViewModel :
         _newFolder = newFolder;
         _move = move;
         _delete = delete;
+        _rename = rename;
     }
 
     public VaultFolderFilterKind Kind { get; }
@@ -217,6 +223,11 @@ public partial class VaultFolderListItemViewModel :
         IsFolder &&
         _move is not null &&
         _delete is not null;
+
+    public bool CanRename =>
+        CanCreateInFolder &&
+        IsFolder &&
+        _rename is not null;
 
     [ObservableProperty]
     public partial bool IsSelected
@@ -277,6 +288,12 @@ public partial class VaultFolderListItemViewModel :
         _delete?.Invoke(this);
     }
 
+    [RelayCommand(CanExecute = nameof(CanRename))]
+    private void Rename()
+    {
+        _rename?.Invoke(this);
+    }
+
     internal void SetSelected(
         bool isSelected)
     {
@@ -304,6 +321,9 @@ public partial class VaultFolderEntryListItemViewModel :
     private readonly Action<
         VaultFolderEntryListItemViewModel> _select;
 
+    private readonly Action<
+        VaultFolderEntryListItemViewModel>? _rename;
+
     public VaultFolderEntryListItemViewModel(
         Guid entryId,
         Guid? folderId,
@@ -312,7 +332,9 @@ public partial class VaultFolderEntryListItemViewModel :
         EntrySessionState sessionState,
         Action<VaultFolderEntryListItemViewModel> select,
         bool isCopySelectionMode = false,
-        bool isCopySelected = false)
+        bool isCopySelected = false,
+        Action<VaultFolderEntryListItemViewModel>?
+            rename = null)
     {
         EntryId = entryId;
         FolderId = folderId;
@@ -338,6 +360,8 @@ public partial class VaultFolderEntryListItemViewModel :
         _select = select ??
             throw new ArgumentNullException(
                 nameof(select));
+
+        _rename = rename;
     }
 
     public Guid EntryId { get; }
@@ -360,6 +384,11 @@ public partial class VaultFolderEntryListItemViewModel :
         IsCopySelectionMode &&
         !IsPendingDeletion;
 
+    public bool CanRename =>
+        !IsCopySelectionMode &&
+        !IsPendingDeletion &&
+        _rename is not null;
+
     [ObservableProperty]
     public partial bool IsSelected
     {
@@ -378,6 +407,12 @@ public partial class VaultFolderEntryListItemViewModel :
     private void Select()
     {
         _select(this);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRename))]
+    private void Rename()
+    {
+        _rename?.Invoke(this);
     }
 
     internal void SetSelected(
@@ -399,11 +434,16 @@ public partial class VaultTagListItemViewModel :
     private readonly Action<VaultTagListItemViewModel>
         _select;
 
+    private readonly Action<VaultTagListItemViewModel>?
+        _rename;
+
     public VaultTagListItemViewModel(
         Guid? tagId,
         string name,
         int entryCount,
-        Action<VaultTagListItemViewModel> select)
+        Action<VaultTagListItemViewModel> select,
+        Action<VaultTagListItemViewModel>?
+            rename = null)
     {
         TagId = tagId;
         Name = name;
@@ -414,6 +454,8 @@ public partial class VaultTagListItemViewModel :
         _select = select ??
             throw new ArgumentNullException(
                 nameof(select));
+
+        _rename = rename;
     }
 
     public Guid? TagId { get; }
@@ -424,6 +466,10 @@ public partial class VaultTagListItemViewModel :
 
     public bool IsTag =>
         TagId.HasValue;
+
+    public bool CanRename =>
+        IsTag &&
+        _rename is not null;
 
     [ObservableProperty]
     public partial bool IsSelected
@@ -436,6 +482,12 @@ public partial class VaultTagListItemViewModel :
     private void Select()
     {
         _select(this);
+    }
+
+    [RelayCommand(CanExecute = nameof(CanRename))]
+    private void Rename()
+    {
+        _rename?.Invoke(this);
     }
 
     internal void SetSelected(

@@ -676,6 +676,9 @@
 
                                                             <Separator />
 
+                                                            <MenuItem Header="RENAME"
+                                                                      Command="{Binding RenameCommand}" />
+
                                                             <MenuItem Header="MOVE"
                                                                       Command="{Binding MoveCommand}" />
 
@@ -741,6 +744,13 @@
                                                     Classes.pending-deletion="{Binding IsPendingDeletion}"
                                                     Command="{Binding SelectCommand}"
                                                     ToolTip.Tip="Show entry">
+
+                                                <Button.ContextMenu>
+                                                    <ContextMenu IsEnabled="{Binding CanRename}">
+                                                        <MenuItem Header="RENAME"
+                                                                  Command="{Binding RenameCommand}" />
+                                                    </ContextMenu>
+                                                </Button.ContextMenu>
 
                                                 <Grid ColumnDefinitions="Auto,18,Auto,*">
                                                     <Border Width="{Binding IndentWidth}" />
@@ -825,6 +835,13 @@
                                             <Button Classes="vault-nav"
                                                     Classes.selected="{Binding IsSelected}"
                                                     Command="{Binding SelectCommand}">
+
+                                                <Button.ContextMenu>
+                                                    <ContextMenu IsEnabled="{Binding CanRename}">
+                                                        <MenuItem Header="RENAME"
+                                                                  Command="{Binding RenameCommand}" />
+                                                    </ContextMenu>
+                                                </Button.ContextMenu>
 
                                                 <Grid ColumnDefinitions="*,Auto">
                                                     <StackPanel Orientation="Horizontal"
@@ -2143,7 +2160,7 @@
             </Border>
         </Border>
 
-        <!-- Create/delete/lock confirmation dialog -->
+        <!-- Create/rename/delete/lock dialog -->
         <Border Grid.RowSpan="2"
                 ZIndex="100"
                 IsVisible="{Binding IsDialogOpen}"

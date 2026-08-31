@@ -868,9 +868,40 @@ public partial class MainVaultViewModel :
             return false;
         }
 
-        return !IsDialogInputVisible ||
-               !string.IsNullOrWhiteSpace(
-                   DialogInput);
+        if (!IsDialogInputVisible)
+        {
+            return true;
+        }
+
+        string input = DialogInput.Trim();
+
+        if (input.Length == 0)
+        {
+            return false;
+        }
+
+        return _dialogAction switch
+        {
+            DialogAction.RenameEntry =>
+                !string.Equals(
+                    input,
+                    _selectedEntry?.Name,
+                    StringComparison.Ordinal),
+
+            DialogAction.RenameFolder =>
+                !string.Equals(
+                    input,
+                    _selectedFolder?.Name,
+                    StringComparison.Ordinal),
+
+            DialogAction.RenameTag =>
+                !string.Equals(
+                    input,
+                    _selectedTag?.Name,
+                    StringComparison.Ordinal),
+
+            _ => true
+        };
     }
 
     private bool CanConfirmMoveDialog()
@@ -2204,6 +2235,18 @@ public partial class MainVaultViewModel :
                     CreateTagFromDialog();
                     break;
 
+                case DialogAction.RenameEntry:
+                    RenameEntryFromDialog();
+                    break;
+
+                case DialogAction.RenameFolder:
+                    RenameFolderFromDialog();
+                    break;
+
+                case DialogAction.RenameTag:
+                    RenameTagFromDialog();
+                    break;
+
                 case DialogAction.DeleteFolder:
                     DeleteSelectedFolder();
                     break;
@@ -2309,6 +2352,80 @@ public partial class MainVaultViewModel :
 
         RecordUnsavedChange(
             $"TAG '{tag.Name}' CREATED");
+    }
+
+    private void RenameEntryFromDialog()
+    {
+        VaultEntryListItemViewModel entry =
+            _selectedEntry ??
+            throw new InvalidOperationException(
+                "Select an entry before renaming it.");
+
+        string newName = DialogInput.Trim();
+
+        _session.RenameEntry(
+            entry.EntryId,
+            newName);
+
+        RefreshBrowser(
+            selectedEntryId: entry.EntryId);
+
+        RecordUnsavedChange(
+            $"ENTRY '{entry.Name}' RENAMED TO '{newName}'");
+    }
+
+    private void RenameFolderFromDialog()
+    {
+        VaultFolderListItemViewModel folder =
+            _selectedFolder ??
+            throw new InvalidOperationException(
+                "Select a folder before renaming it.");
+
+        if (folder.FolderId is not Guid folderId)
+        {
+            throw new InvalidOperationException(
+                "The selected item is not a folder.");
+        }
+
+        string newName = DialogInput.Trim();
+
+        _session.RenameFolder(
+            folderId,
+            newName);
+
+        RefreshBrowser(
+            selectedFolderKind:
+                VaultFolderFilterKind.Folder,
+            selectedFolderId: folderId);
+
+        RecordUnsavedChange(
+            $"FOLDER '{folder.Name}' RENAMED TO '{newName}'");
+    }
+
+    private void RenameTagFromDialog()
+    {
+        VaultTagListItemViewModel tag =
+            _selectedTag ??
+            throw new InvalidOperationException(
+                "Select a tag before renaming it.");
+
+        if (tag.TagId is not Guid tagId)
+        {
+            throw new InvalidOperationException(
+                "The selected item is not a tag.");
+        }
+
+        string newName = DialogInput.Trim();
+
+        _session.RenameTag(
+            tagId,
+            newName);
+
+        RefreshBrowser(
+            selectedTagId: tagId);
+
+        RecordUnsavedChange(
+            $"TAG '{tag.Name}' RENAMED TO '{newName}'");
     }
 
     private void DeleteSelectedFolder()
@@ -3022,6 +3139,27 @@ public partial class MainVaultViewModel :
         NewFolder();
     }
 
+    private void RenameFolderFromContextMenu(
+        VaultFolderListItemViewModel folder)
+    {
+        if (!CanUseFolderContextAction(
+                folder,
+                requireRegularFolder: true))
+        {
+            return;
+        }
+
+        SelectFolder(folder);
+
+        OpenInputDialog(
+            DialogAction.RenameFolder,
+            "RENAME FOLDER",
+            $"Rename '{folder.Name}'. The folder ID and its contents " +
+            "will remain unchanged.",
+            "RENAME FOLDER",
+            folder.Name);
+    }
+
     private void MoveFolderFromContextMenu(
         VaultFolderListItemViewModel folder)
     {
@@ -3048,6 +3186,32 @@ public partial class MainVaultViewModel :
 
         SelectFolder(folder);
         DeleteFolder();
+    }
+
+    private void RenameEntryFromContextMenu(
+        VaultFolderEntryListItemViewModel entry)
+    {
+        if (!CanMutateVault() ||
+            !FolderItems.Contains(entry) ||
+            entry.IsPendingDeletion)
+        {
+            return;
+        }
+
+        SelectFolderEntry(entry);
+
+        VaultEntryListItemViewModel selectedEntry =
+            _selectedEntry ??
+            throw new InvalidOperationException(
+                "Select an entry before renaming it.");
+
+        OpenInputDialog(
+            DialogAction.RenameEntry,
+            "RENAME ENTRY",
+            $"Rename '{selectedEntry.Name}'. The entry ID, fields, " +
+            "tags, and revision will remain unchanged.",
+            "RENAME ENTRY",
+            selectedEntry.Name);
     }
 
     private void ToggleFolderExpansion(
@@ -3182,6 +3346,27 @@ public partial class MainVaultViewModel :
 
         ApplyEntryFilter();
         DeleteTagCommand.NotifyCanExecuteChanged();
+    }
+
+    private void RenameTagFromContextMenu(
+        VaultTagListItemViewModel tag)
+    {
+        if (!CanMutateVault() ||
+            !TagItems.Contains(tag) ||
+            !tag.IsTag)
+        {
+            return;
+        }
+
+        SelectTag(tag);
+
+        OpenInputDialog(
+            DialogAction.RenameTag,
+            "RENAME TAG",
+            $"Rename '{tag.Name}'. The tag ID and all entry " +
+            "assignments will remain unchanged.",
+            "RENAME TAG",
+            tag.Name);
     }
 
     private void SelectEntry(
@@ -3530,7 +3715,8 @@ public partial class MainVaultViewModel :
                 NewEntryInFolder,
                 NewFolderInFolder,
                 MoveFolderFromContextMenu,
-                DeleteFolderFromContextMenu));
+                DeleteFolderFromContextMenu,
+                RenameFolderFromContextMenu));
 
         EntryDescriptor[] rootEntries =
             entries
@@ -3565,7 +3751,8 @@ public partial class MainVaultViewModel :
                 NewEntryInFolder,
                 NewFolderInFolder,
                 MoveFolderFromContextMenu,
-                DeleteFolderFromContextMenu));
+                DeleteFolderFromContextMenu,
+                RenameFolderFromContextMenu));
 
         HashSet<Guid> visited = [];
 
@@ -3592,7 +3779,8 @@ public partial class MainVaultViewModel :
                         SelectFolderEntry,
                         IsCopySelectionMode,
                         _copySelectedEntryIds.Contains(
-                            entry.EntryId)));
+                            entry.EntryId),
+                        RenameEntryFromContextMenu));
             }
         }
     }
@@ -3648,7 +3836,8 @@ public partial class MainVaultViewModel :
                                 SelectFolderEntry,
                                 IsCopySelectionMode,
                                 _copySelectedEntryIds.Contains(
-                                    entry.EntryId)))
+                                    entry.EntryId),
+                                RenameEntryFromContextMenu))
                         .ToArray();
 
             bool hasChildFolders =
@@ -3681,7 +3870,8 @@ public partial class MainVaultViewModel :
                     NewEntryInFolder,
                     NewFolderInFolder,
                     MoveFolderFromContextMenu,
-                    DeleteFolderFromContextMenu));
+                    DeleteFolderFromContextMenu,
+                    RenameFolderFromContextMenu));
 
             if (_expandedFolderIds.Contains(
                     folder.FolderId))
@@ -3714,7 +3904,8 @@ public partial class MainVaultViewModel :
                 tagId: null,
                 "ALL TAGS",
                 entries.Count,
-                SelectTag));
+                SelectTag,
+                RenameTagFromContextMenu));
 
         foreach (TagDescriptor tag in tags.OrderBy(
                      tag => tag.Name,
@@ -3727,7 +3918,8 @@ public partial class MainVaultViewModel :
                     entries.Count(entry =>
                         entry.TagIds.Contains(
                             tag.TagId)),
-                    SelectTag));
+                    SelectTag,
+                    RenameTagFromContextMenu));
         }
     }
 
@@ -4067,7 +4259,8 @@ public partial class MainVaultViewModel :
         DialogAction action,
         string title,
         string description,
-        string primaryActionText)
+        string primaryActionText,
+        string initialInput = "")
     {
         OpenDialog(
             action,
@@ -4075,7 +4268,8 @@ public partial class MainVaultViewModel :
             description,
             primaryActionText,
             showInput: true,
-            isDestructive: false);
+            isDestructive: false,
+            initialInput: initialInput);
     }
 
     private void OpenConfirmationDialog(
@@ -4090,7 +4284,8 @@ public partial class MainVaultViewModel :
             description,
             primaryActionText,
             showInput: false,
-            isDestructive: true);
+            isDestructive: true,
+            initialInput: string.Empty);
     }
 
     private void OpenDialog(
@@ -4099,7 +4294,8 @@ public partial class MainVaultViewModel :
         string description,
         string primaryActionText,
         bool showInput,
-        bool isDestructive)
+        bool isDestructive,
+        string initialInput)
     {
         _dialogAction = action;
 
@@ -4111,7 +4307,9 @@ public partial class MainVaultViewModel :
 
         IsDialogInputVisible = showInput;
         IsDialogDestructive = isDestructive;
-        DialogInput = string.Empty;
+        DialogInput = showInput
+            ? initialInput
+            : string.Empty;
         DialogErrorMessage = null;
         IsDialogOpen = true;
     }
@@ -4374,6 +4572,9 @@ public partial class MainVaultViewModel :
         CreateEntry,
         CreateFolder,
         CreateTag,
+        RenameEntry,
+        RenameFolder,
+        RenameTag,
         DeleteFolder,
         DeleteTag,
         DeleteEntry,
