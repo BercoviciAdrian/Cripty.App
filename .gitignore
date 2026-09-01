@@ -361,3 +361,8 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Local publish and packaging outputs
+/Builds/
+/artifacts/
+/CriptyBuilds.rar

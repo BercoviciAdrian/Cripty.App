@@ -13,7 +13,7 @@
         MinWidth="900"
         MinHeight="600"
         WindowStartupLocation="CenterScreen"
-        Icon="avares://Cripty/Assets/cripty.ico"
+        Icon="avares://Cripty/Assets/cripty.png"
         Title="Cripty"
         >
 

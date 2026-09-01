@@ -1,4 +1,11 @@
 <Solution>
+  <Folder Name="/Documentation/">
+    <File Path="docs/ARCHITECTURE.md" />
+    <File Path="docs/KNOWN-LIMITATIONS.md" />
+    <File Path="docs/SECURITY-MODEL.md" />
+    <File Path="docs/VAULT-FORMAT.md" />
+    <File Path="README.md" />
+  </Folder>
   <Project Path="Cripty.Application.Tests/Cripty.Application.Tests.csproj" Id="a1d1ebef-fba4-4211-9c07-7897ccd545eb" />
   <Project Path="Cripty.Application/Cripty.Application.csproj" />
   <Project Path="Cripty.Core/Cripty.Core.csproj" />
